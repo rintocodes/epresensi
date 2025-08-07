@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Presensi Siswa dengan Rekap Bulanan</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Fredoka+One&display=swap');
+        :root {
+            --primary-color: #3498db; --secondary-color: #2ecc71; --accent-color: #f1c40f;
+            --danger-color: #e74c3c; --pdf-color: #e74c3c; --excel-color: #27ae60;
+            --bg-color: #f7f9fc; --text-color: #333; --light-gray: #ecf0f1; --white: #ffffff;
+            --shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        body { font-family: 'Poppins', sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: auto; background-color: var(--white); border-radius: 20px; box-shadow: var(--shadow); overflow: hidden; margin-bottom: 30px; }
+        .header { background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: var(--white); padding: 30px; text-align: center; }
+        .header h1 { font-family: 'Fredoka One', cursive; margin: 0; font-size: 2.5em; letter-spacing: 2px; }
+        .info-sekolah { padding: 20px 30px; background-color: #f8f9fa; border-bottom: 1px solid var(--light-gray); display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        .info-item { display: flex; flex-direction: column; }
+        .info-item label { font-weight: 600; color: var(--primary-color); margin-bottom: 5px; }
+        .info-item input { padding: 10px; border: 1px solid var(--light-gray); border-radius: 8px; font-size: 1em; }
+        .main-content { padding: 30px; }
+        .kontrol-presensi { display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px; margin-bottom: 25px; }
+        .kontrol-presensi button { flex-grow: 1; padding: 12px 20px; border: none; border-radius: 8px; font-size: 1em; font-weight: 600; cursor: pointer; transition: all 0.3s ease; color: var(--white); }
+        #btn-hadir-semua { background-color: var(--secondary-color); }
+        #btn-izin-semua { background-color: var(--accent-color); color: #5c4b01; }
+        #btn-sakit-semua { background-color: var(--danger-color); }
+        #btn-reset { background-color: #95a5a6; }
+        .tabel-presensi { width: 100%; border-collapse: collapse; }
+        .tabel-presensi th, .tabel-presensi td { padding: 15px; text-align: left; border-bottom: 1px solid var(--light-gray); }
+        .tabel-presensi th { background-color: #f2f2f2; }
+        .status-kehadiran { display: flex; gap: 10px; justify-content: center; }
+        .status-kehadiran input[type="radio"] { display: none; }
+        .status-kehadiran label { padding: 5px 12px; border-radius: 20px; cursor: pointer; transition: all 0.3s ease; font-weight: 500; border: 2px solid transparent; min-width: 40px; text-align: center; }
+        .hadir-label { border-color: var(--secondary-color); color: var(--secondary-color); }
+        .izin-label { border-color: var(--accent-color); color: var(--accent-color); }
+        .sakit-label { border-color: var(--danger-color); color: var(--danger-color); }
+        .status-kehadiran input[name^="status_"]:checked + .hadir-label { background-color: var(--secondary-color); color: var(--white); }
+        .status-kehadiran input[name^="status_"]:checked + .izin-label { background-color: var(--accent-color); color: var(--white); }
+        .status-kehadiran input[name^="status_"]:checked + .sakit-label { background-color: var(--danger-color); color: var(--white); }
+        .tombol-aksi { display: flex; gap: 15px; margin-top: 30px; }
+        .action-button { flex-grow: 1; padding: 15px; border: none; border-radius: 10px; color: var(--white); font-size: 1.1em; font-weight: 700; cursor: pointer; transition: all 0.3s ease; display: flex; justify-content: center; align-items: center; gap: 8px; }
+        #simpan-data { background-color: var(--primary-color); }
+        #rekap-area { padding: 30px; }
+        #rekap-area h2 { font-family: 'Fredoka One', cursive; text-align: center; color: var(--primary-color); font-size: 2em; }
+        .rekap-kontrol { display: flex; gap: 15px; justify-content: center; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+        .rekap-kontrol select, .rekap-kontrol button { padding: 10px 15px; font-size: 1em; border-radius: 8px; border: 1px solid var(--light-gray); }
+        #tampilkan-rekap { background-color: var(--secondary-color); color: white; font-weight: 600; cursor: pointer; }
+        #rekap-tabel-container { overflow-x: auto; padding-bottom: 10px; }
+        .tabel-rekap { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9em; }
+        .tabel-rekap th, .tabel-rekap td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        .tabel-rekap th { background-color: #f2f2f2; position: sticky; top: 0; }
+        .nama-siswa-sticky { position: sticky; left: 0; background-color: #f8f9fa; z-index: 1; }
+        .tabel-rekap .total-hadir { background-color: #d4edda; font-weight: bold; }
+        .tabel-rekap .total-izin { background-color: #fff3cd; font-weight: bold; }
+        .tabel-rekap .total-sakit { background-color: #f8d7da; font-weight: bold; }
+        .footer { text-align: center; padding: 20px; font-size: 0.9em; color: #777; }
+        #export-pdf { background-color: var(--pdf-color); }
+        #export-excel { background-color: var(--excel-color); }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="area-presensi-harian">
+        <header class="header"><h1>📝 Presensi Harian</h1></header>
+        <section class="info-sekolah">
+            <div class="info-item"><label for="nama-sekolah">Nama Sekolah</label><input type="text" id="nama-sekolah" value="SDN Ceria 1 Pagi"></div>
+            <div class="info-item"><label for="nama-guru">Nama Guru</label><input type="text" id="nama-guru" value="Ibu Budiarti, S.Pd."></div>
+            <div class="info-item"><label for="kelas">Kelas</label><input type="text" id="kelas" value="4A"></div>
+            <div class="info-item"><label for="tanggal">Tanggal</label><input type="date" id="tanggal"></div>
+        </section>
+        <main class="main-content">
+            <div class="kontrol-presensi">
+                <button id="btn-hadir-semua">✅ Hadir Semua</button>
+                <button id="btn-izin-semua">📒 Izin Semua</button>
+                <button id="btn-sakit-semua">🤒 Sakit Semua</button>
+                <button id="btn-reset">🔄 Reset</button>
+            </div>
+            <table class="tabel-presensi">
+                <thead><tr><th>No.</th><th>Nama Siswa</th><th style="text-align: center;">Kehadiran</th></tr></thead>
+                <tbody id="daftar-siswa"></tbody>
+            </table>
+            <div class="tombol-aksi">
+                <button id="simpan-data" class="action-button">💾 Simpan Data Hari Ini</button>
+            </div>
+        </main>
+    </div>
+
+    <div class="container" id="area-rekap-bulanan">
+        <section id="rekap-area">
+            <h2>📅 Rekapitulasi Bulanan</h2>
+            <div class="rekap-kontrol">
+                <select id="pilih-bulan"></select>
+                <select id="pilih-tahun"></select>
+                <button id="tampilkan-rekap">Tampilkan Rekap</button>
+            </div>
+            <div id="rekap-tabel-container">
+                </div>
+            <div class="tombol-aksi" id="aksi-rekap" style="display:none;">
+                <button id="export-pdf" class="action-button">📄 Ekspor Rekap ke PDF</button>
+                <button id="export-excel" class="action-button">📊 Ekspor Rekap ke Excel</button>
+            </div>
+        </section>
+    </div>
+
+    <footer class="footer">
+        <p>⚠️ Data presensi disimpan di browser ini saja. Jangan hapus cache/data browser.</p>
+        <p>&copy; 2025 - Presensi Ceria</p>
+    </footer>
+
+<script>
+    // --- KONFIGURASI AWAL ---
+    const daftarNamaSiswa = [
+        "Aditya Pratama", "Aisyah Putri", "Alif Rahman", "Amanda Sari", "Bayu Segara", "Bunga Lestari", "Cahya Wulan", "Daffa Firmansyah", "Dewi Anggraini", "Eka Saputra", "Fajar Nugroho", "Fitriani", "Gita Permata", "Hafiz Maulana", "Indah Puspita", "Joko Susilo", "Kartika Chandra", "Lia Amelia", "Maulana Yusuf", "Nadia ananda", "Putri Lestari", "Rizky Akbar", "Siti Nurhaliza", "Tegar Perkasa", "Zahra Aulia"
+    ];
+    const bulan = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+    const { jsPDF } = window.jspdf;
+
+    // --- FUNGSI-FUNGSI UTAMA ---
+
+    function generateDaftarSiswa() {
+        const tbody = document.getElementById('daftar-siswa');
+        tbody.innerHTML = '';
+        daftarNamaSiswa.forEach((nama, index) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${index + 1}</td>
+                <td class="nama-siswa">${nama}</td>
+                <td>
+                    <div class="status-kehadiran">
+                        <input type="radio" id="hadir_${index}" name="status_${index}" value="Hadir" checked><label for="hadir_${index}" class="hadir-label">Hadir</label>
+                        <input type="radio" id="izin_${index}" name="status_${index}" value="Izin"><label for="izin_${index}" class="izin-label">Izin</label>
+                        <input type="radio" id="sakit_${index}" name="status_${index}" value="Sakit"><label for="sakit_${index}" class="sakit-label">Sakit</label>
+                    </div>
+                </td>`;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function tandaiSemua(status) {
+        document.querySelectorAll(`input[type="radio"][value="${status}"]`).forEach(radio => radio.checked = true);
+    }
+
+    function populateDropdowns() {
+        const selectBulan = document.getElementById('pilih-bulan');
+        const selectTahun = document.getElementById('pilih-tahun');
+        const now = new Date();
+
+        bulan.forEach((namaBulan, index) => {
+            const option = new Option(namaBulan, index);
+            if (index === now.getMonth()) option.selected = true;
+            selectBulan.add(option);
+        });
+
+        for (let i = now.getFullYear(); i >= now.getFullYear() - 5; i--) {
+            const option = new Option(i, i);
+            selectTahun.add(option);
+        }
+    }
+
+    // --- FUNGSI PENYIMPANAN DATA ---
+    function simpanData() {
+        const tanggal = document.getElementById('tanggal').value;
+        if (!tanggal) {
+            alert("Silakan pilih tanggal terlebih dahulu!");
+            return;
+        }
+
+        const dataPresensiHariIni = {
+            siswa: []
+        };
+        document.querySelectorAll('#daftar-siswa tr').forEach((row, index) => {
+            const nama = row.querySelector('.nama-siswa').innerText;
+            const status = document.querySelector(`input[name="status_${index}"]:checked`).value;
+            dataPresensiHariIni.siswa.push({ nama, status });
+        });
+        
+        const key = `presensi-${tanggal}`;
+        localStorage.setItem(key, JSON.stringify(dataPresensiHariIni));
+        alert(`Data presensi untuk tanggal ${tanggal} berhasil disimpan!`);
+    }
+
+    // --- FUNGSI REKAP BULANAN ---
+    function tampilkanRekap() {
+        const bulanDipilih = parseInt(document.getElementById('pilih-bulan').value);
+        const tahunDipilih = parseInt(document.getElementById('pilih-tahun').value);
+        const container = document.getElementById('rekap-tabel-container');
+        container.innerHTML = ''; // Kosongkan
+        document.getElementById('aksi-rekap').style.display = 'none';
+
+        // Ambil semua data presensi dari localStorage
+        let semuaData = {};
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.startsWith('presensi-')) {
+                semuaData[key.replace('presensi-', '')] = JSON.parse(localStorage.getItem(key));
+            }
+        }
+
+        const hariDiBulan = new Date(tahunDipilih, bulanDipilih + 1, 0).getDate();
+        
+        let tableHTML = '<table class="tabel-rekap" id="tabel-rekap-export"><thead><tr><th class="nama-siswa-sticky">Nama Siswa</th>';
+        for (let i = 1; i <= hariDiBulan; i++) {
+            tableHTML += `<th>${i}</th>`;
+        }
+        tableHTML += '<th>Hadir</th><th>Izin</th><th>Sakit</th></tr></thead><tbody>';
+
+        daftarNamaSiswa.forEach(nama => {
+            let totalHadir = 0, totalIzin = 0, totalSakit = 0;
+            tableHTML += `<tr><td class="nama-siswa-sticky">${nama}</td>`;
+            for (let tgl = 1; tgl <= hariDiBulan; tgl++) {
+                const tanggalCari = `${tahunDipilih}-${String(bulanDipilih + 1).padStart(2, '0')}-${String(tgl).padStart(2, '0')}`;
+                let status = '';
+                if (semuaData[tanggalCari]) {
+                    const dataSiswa = semuaData[tanggalCari].siswa.find(s => s.nama === nama);
+                    if (dataSiswa) {
+                        status = dataSiswa.status.charAt(0); // H, I, atau S
+                        if (status === 'H') totalHadir++;
+                        else if (status === 'I') totalIzin++;
+                        else if (status === 'S') totalSakit++;
+                    }
+                }
+                tableHTML += `<td>${status}</td>`;
+            }
+            tableHTML += `<td class="total-hadir">${totalHadir}</td><td class="total-izin">${totalIzin}</td><td class="total-sakit">${totalSakit}</td></tr>`;
+        });
+        tableHTML += '</tbody></table>';
+
+        container.innerHTML = tableHTML;
+        if (Object.keys(semuaData).length > 0) {
+            document.getElementById('aksi-rekap').style.display = 'flex';
+        }
+    }
+
+    // --- FUNGSI EKSPOR REKAP ---
+    function exportRekapPDF() {
+        const element = document.getElementById('rekap-tabel-container');
+        const bulan = document.getElementById('pilih-bulan').options[document.getElementById('pilih-bulan').selectedIndex].text;
+        const tahun = document.getElementById('pilih-tahun').value;
+        const fileName = `Rekap_Presensi_${bulan}_${tahun}.pdf`;
+
+        html2canvas(element, { scale: 2, backgroundColor: null }).then(canvas => {
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('l', 'mm', 'a3'); // Landscape A3 untuk tabel lebar
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            pdf.addImage(imgData, 'PNG', 10, 10, pdfWidth - 20, pdfHeight - 20);
+            pdf.save(fileName);
+        });
+    }
+
+    function exportRekapExcel() {
+        const bulan = document.getElementById('pilih-bulan').options[document.getElementById('pilih-bulan').selectedIndex].text;
+        const tahun = document.getElementById('pilih-tahun').value;
+        const fileName = `Rekap_Presensi_${bulan}_${tahun}.xlsx`;
+        
+        const tabel = document.getElementById('tabel-rekap-export');
+        const wb = XLSX.utils.table_to_book(tabel, { sheet: "Rekap" });
+        XLSX.writeFile(wb, fileName);
+    }
+    
+    // --- EVENT LISTENERS ---
+    document.addEventListener('DOMContentLoaded', () => {
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('tanggal').value = today;
+        generateDaftarSiswa();
+        populateDropdowns();
+    });
+
+    document.getElementById('btn-hadir-semua').addEventListener('click', () => tandaiSemua('Hadir'));
+    document.getElementById('btn-izin-semua').addEventListener('click', () => tandaiSemua('Izin'));
+    document.getElementById('btn-sakit-semua').addEventListener('click', () => tandaiSemua('Sakit'));
+    document.getElementById('btn-reset').addEventListener('click', () => tandaiSemua('Hadir'));
+    document.getElementById('simpan-data').addEventListener('click', simpanData);
+    document.getElementById('tampilkan-rekap').addEventListener('click', tampilkanRekap);
+    document.getElementById('export-pdf').addEventListener('click', exportRekapPDF);
+    document.getElementById('export-excel').addEventListener('click', exportRekapExcel);
+</script>
+
+</body>
+</html>
